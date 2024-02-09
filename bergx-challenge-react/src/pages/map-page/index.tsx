@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { Button, Col, Container, Form, Modal, Row } from "react-bootstrap";
 import Map, {
   FullscreenControl,
@@ -9,44 +9,28 @@ import Map, {
   Popup,
   ScaleControl,
 } from "react-map-gl";
+import { useSelector } from "react-redux";
 import Pin from "../../components/pin";
+import { RootState } from "../../redux/store";
 import { formJson, httpApi } from "../../utils/api";
 import { CityType, Nullable } from "../../utils/types";
 
 export default function MapPage() {
-  const [popupInfo, setPopupInfo] = useState<Nullable<CityType>>(null);
-  const [cities, setCities] = useState<CityType[]>([]);
-  const [show, setShow] = useState(false);
+  const cityState = useSelector((state: RootState) => state.city);
 
   const [dblClickedPoint, setDblClickedPoint] =
     useState<Nullable<MapLayerMouseEvent>>(null);
+  const [popupInfo, setPopupInfo] = useState<Nullable<CityType>>(null);
+  const [show, setShow] = useState(false);
 
   const refAddPinForm = useRef<any>();
 
   const handleClose = () => setShow(false);
   const handleShow = () => setShow(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const api = httpApi();
-
-        const result = await api.get("/ws/getPins");
-        console.log(">> 🚀 result:", result);
-
-        // TODO Get cities from backend.
-        setCities(result.data);
-      } catch (e) {
-        // TODO Must you show error to user? Think about that.
-        console.log(e);
-      }
-    })();
-  }, []);
-
   function onMapDblClick(event: MapLayerMouseEvent) {
     const lngLat = event.lngLat;
-    lngLat.lat;
-    //alert(">> 🚀 lngLat:" + lngLat.toString());
+    console.log(">> 🚀 lngLat:" + lngLat.toString());
 
     setDblClickedPoint(event);
     handleShow();
@@ -56,12 +40,19 @@ export default function MapPage() {
     e.preventDefault();
 
     const formData = formJson(refAddPinForm?.current);
+    formData.latitude = parseFloat(formData.latitude as string);
+    formData.longitude = parseFloat(formData.longitude as string);
     console.log(">> 🚀 formData:", formData);
+
+    const api = httpApi();
+    await api.post("ws/addPin", formData);
+
+    handleClose();
   };
 
   const pins = useMemo(
     () =>
-      cities.map((city, index) => (
+      cityState.cities.map((city, index) => (
         <Marker
           key={`marker-${index}`}
           longitude={city.longitude}
@@ -77,7 +68,7 @@ export default function MapPage() {
           <Pin />
         </Marker>
       )),
-    [cities]
+    [cityState]
   );
 
   return (
@@ -142,6 +133,7 @@ export default function MapPage() {
                 bearing: 0,
                 pitch: 0,
               }}
+              attributionControl={false}
               mapStyle="mapbox://styles/mapbox/dark-v9"
               mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
               scrollZoom={false}
